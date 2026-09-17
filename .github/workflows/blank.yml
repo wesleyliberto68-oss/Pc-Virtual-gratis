@@ -2,96 +2,164 @@ package com.virtualpc
 
 import android.app.Activity
 import android.os.Bundle
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.TextView
-import java.io.File
+import android.graphics.Color
+import android.view.Gravity
+import android.widget.*
 
 class MainActivity : Activity() {
 
-    private lateinit var log: TextView
-    private lateinit var ramInput: EditText
+    private lateinit var status: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val layout = LinearLayout(this)
-        layout.orientation = LinearLayout.VERTICAL
-        layout.setPadding(30, 30, 30, 30)
+        val root = LinearLayout(this)
+
+        root.orientation = LinearLayout.VERTICAL
+        root.setPadding(32, 32, 32, 32)
+        root.setGravity(Gravity.CENTER_HORIZONTAL)
 
         val title = TextView(this)
-        title.text = "Virtual PC Android"
-        title.textSize = 24f
 
-        ramInput = EditText(this)
-        ramInput.hint = "RAM em MB"
-        ramInput.setText("2048")
+        title.text = "Virtual PC"
+        title.textSize = 28f
+        title.setTextColor(Color.WHITE)
+        title.gravity = Gravity.CENTER
+
+        root.addView(
+            title,
+            LinearLayout.LayoutParams(
+                -1,
+                100
+            )
+        )
+
+        val ram = EditText(this)
+
+        ram.hint = "RAM (MB)"
+        ram.setText("2048")
+        ram.inputType = 2
+
+        root.addView(
+            ram,
+            LinearLayout.LayoutParams(
+                -1,
+                70
+            )
+        )
 
         val start = Button(this)
-        start.text = "Iniciar PC Virtual"
+
+        start.text = "INICIAR PC VIRTUAL"
+
+        root.addView(
+            start,
+            LinearLayout.LayoutParams(
+                -1,
+                70
+            )
+        )
 
         val stop = Button(this)
-        stop.text = "Desligar"
 
-        log = TextView(this)
-        log.text = "Aguardando..."
+        stop.text = "DESLIGAR"
 
-        layout.addView(title)
-        layout.addView(ramInput)
-        layout.addView(start)
-        layout.addView(stop)
-        layout.addView(log)
+        root.addView(
+            stop,
+            LinearLayout.LayoutParams(
+                -1,
+                70
+            )
+        )
 
-        setContentView(layout)
+        status = TextView(this)
+
+        status.text = "Status: desligado"
+        status.textSize = 16f
+        status.setTextColor(Color.WHITE)
+
+        root.addView(
+            status,
+            LinearLayout.LayoutParams(
+                -1,
+                100
+            )
+        )
+
+        setContentView(root)
 
         start.setOnClickListener {
-            startVM()
+
+            val memory =
+                ram.text.toString().toIntOrNull()
+                    ?: 2048
+
+            startVirtualPC(memory)
         }
 
         stop.setOnClickListener {
-            stopVM()
+
+            stopVirtualPC()
         }
     }
 
-    private var qemuProcess: Process? = null
+    private var process: Process? = null
 
-    private fun startVM() {
+    private fun startVirtualPC(memory: Int) {
 
-        if (qemuProcess != null) {
-            log.text = "A VM já está executando."
+        if (process != null) {
+
+            status.text =
+                "Status: PC virtual já está ligado"
+
             return
         }
 
-        val qemu = File(filesDir, "qemu-system-aarch64")
-        val disk = File(filesDir, "linux.img")
+        val qemu =
+            filesDir.resolve(
+                "qemu-system-aarch64"
+            )
+
+        val disk =
+            filesDir.resolve(
+                "linux.img"
+            )
 
         if (!qemu.exists()) {
-            log.text = "QEMU não encontrado."
+
+            status.text =
+                "Erro: QEMU não encontrado"
+
             return
         }
 
         if (!disk.exists()) {
-            log.text = "linux.img não encontrada."
+
+            status.text =
+                "Erro: linux.img não encontrada"
+
             return
         }
-
-        val ram = ramInput.text.toString().toIntOrNull() ?: 2048
 
         try {
 
             qemu.setExecutable(true)
 
-            val command = arrayOf(
+            val command = listOf(
+
                 qemu.absolutePath,
 
-                "-M", "virt",
+                "-M",
+                "virt",
 
-                "-cpu", "cortex-a53",
+                "-cpu",
+                "cortex-a53",
 
-                "-smp", "4",
+                "-smp",
+                "4",
 
-                "-m", ram.toString(),
+                "-m",
+                memory.toString(),
 
                 "-drive",
                 "file=${disk.absolutePath},format=raw,if=virtio",
@@ -99,54 +167,73 @@ class MainActivity : Activity() {
                 "-nographic"
             )
 
-            qemuProcess = ProcessBuilder(*command)
-                .redirectErrorStream(true)
-                .start()
+            process =
+                ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .start()
 
-            log.text = "PC virtual iniciado."
+            status.text =
+                "Status: PC virtual ligado"
 
             Thread {
+
                 try {
-                    val reader = qemuProcess!!
-                        .inputStream
-                        .bufferedReader()
+
+                    val reader =
+                        process!!
+                            .inputStream
+                            .bufferedReader()
 
                     while (true) {
-                        val line = reader.readLine() ?: break
+
+                        val line =
+                            reader.readLine()
+                                ?: break
 
                         runOnUiThread {
-                            log.text = line
+
+                            status.text =
+                                "QEMU: $line"
                         }
                     }
 
                 } catch (_: Exception) {
                 }
+
             }.start()
 
         } catch (e: Exception) {
 
-            log.text = "Erro: ${e.message}"
-            qemuProcess = null
+            status.text =
+                "Erro: ${e.message}"
+
+            process = null
         }
     }
 
-    private fun stopVM() {
+    private fun stopVirtualPC() {
 
         try {
-            qemuProcess?.destroy()
-            qemuProcess = null
 
-            log.text = "PC virtual desligado."
+            process?.destroy()
+
+            process = null
+
+            status.text =
+                "Status: desligado"
 
         } catch (e: Exception) {
-            log.text = "Erro ao desligar."
+
+            status.text =
+                "Erro ao desligar"
         }
     }
 
     override fun onDestroy() {
 
-        qemuProcess?.destroy()
-        qemuProcess = null
+        process?.destroy()
+
+        process = null
 
         super.onDestroy()
     }
