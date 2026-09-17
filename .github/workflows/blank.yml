@@ -1,0 +1,153 @@
+package com.virtualpc
+
+import android.app.Activity
+import android.os.Bundle
+import android.widget.Button
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.TextView
+import java.io.File
+
+class MainActivity : Activity() {
+
+    private lateinit var log: TextView
+    private lateinit var ramInput: EditText
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val layout = LinearLayout(this)
+        layout.orientation = LinearLayout.VERTICAL
+        layout.setPadding(30, 30, 30, 30)
+
+        val title = TextView(this)
+        title.text = "Virtual PC Android"
+        title.textSize = 24f
+
+        ramInput = EditText(this)
+        ramInput.hint = "RAM em MB"
+        ramInput.setText("2048")
+
+        val start = Button(this)
+        start.text = "Iniciar PC Virtual"
+
+        val stop = Button(this)
+        stop.text = "Desligar"
+
+        log = TextView(this)
+        log.text = "Aguardando..."
+
+        layout.addView(title)
+        layout.addView(ramInput)
+        layout.addView(start)
+        layout.addView(stop)
+        layout.addView(log)
+
+        setContentView(layout)
+
+        start.setOnClickListener {
+            startVM()
+        }
+
+        stop.setOnClickListener {
+            stopVM()
+        }
+    }
+
+    private var qemuProcess: Process? = null
+
+    private fun startVM() {
+
+        if (qemuProcess != null) {
+            log.text = "A VM já está executando."
+            return
+        }
+
+        val qemu = File(filesDir, "qemu-system-aarch64")
+        val disk = File(filesDir, "linux.img")
+
+        if (!qemu.exists()) {
+            log.text = "QEMU não encontrado."
+            return
+        }
+
+        if (!disk.exists()) {
+            log.text = "linux.img não encontrada."
+            return
+        }
+
+        val ram = ramInput.text.toString().toIntOrNull() ?: 2048
+
+        try {
+
+            qemu.setExecutable(true)
+
+            val command = arrayOf(
+                qemu.absolutePath,
+
+                "-M", "virt",
+
+                "-cpu", "cortex-a53",
+
+                "-smp", "4",
+
+                "-m", ram.toString(),
+
+                "-drive",
+                "file=${disk.absolutePath},format=raw,if=virtio",
+
+                "-nographic"
+            )
+
+            qemuProcess = ProcessBuilder(*command)
+                .redirectErrorStream(true)
+                .start()
+
+            log.text = "PC virtual iniciado."
+
+            Thread {
+                try {
+                    val reader = qemuProcess!!
+                        .inputStream
+                        .bufferedReader()
+
+                    while (true) {
+                        val line = reader.readLine() ?: break
+
+                        runOnUiThread {
+                            log.text = line
+                        }
+                    }
+
+                } catch (_: Exception) {
+                }
+            }.start()
+
+        } catch (e: Exception) {
+
+            log.text = "Erro: ${e.message}"
+            qemuProcess = null
+        }
+    }
+
+    private fun stopVM() {
+
+        try {
+            qemuProcess?.destroy()
+            qemuProcess = null
+
+            log.text = "PC virtual desligado."
+
+        } catch (e: Exception) {
+            log.text = "Erro ao desligar."
+        }
+    }
+
+    override fun onDestroy() {
+
+        qemuProcess?.destroy()
+        qemuProcess = null
+
+        super.onDestroy()
+    }
+}
