@@ -1,49 +1,117 @@
-name: Build Virtual PC
+name: PC Virtual Gamer
 
 on:
-  push:
-    branches:
-      - main
-
   workflow_dispatch:
 
 jobs:
-
-  build:
-
-    runs-on: ubuntu-latest
+  pc-virtual:
+    name: Iniciar PC Virtual Gamer
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
 
     steps:
-
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Setup Android
-        uses: android-actions/setup-android@v3
-
-      - name: Install SDK
+      - name: Atualizar sistema
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-35"
-          sdkmanager "build-tools;35.0.0"
+          sudo apt-get update
+          sudo apt-get upgrade -y
 
-      - name: Generate Gradle wrapper
+      - name: Instalar interface gráfica
         run: |
-          gradle wrapper --gradle-version 8.10.2
+          sudo apt-get install -y \
+            xfce4 \
+            xfce4-goodies \
+            xubuntu-desktop \
+            dbus-x11 \
+            x11-xserver-utils
 
-      - name: Build APK
+      - name: Instalar ferramentas
         run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug
+          sudo apt-get install -y \
+            git \
+            wget \
+            curl \
+            unzip \
+            zip \
+            nano \
+            htop \
+            neofetch \
+            mesa-utils \
+            pulseaudio
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: VirtualPC-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Instalar suporte gráfico
+        run: |
+          sudo apt-get install -y \
+            mesa-vulkan-drivers \
+            vulkan-tools \
+            libgl1-mesa-dri
+
+      - name: Mostrar informações do PC virtual
+        run: |
+          echo "=============================="
+          echo "       PC VIRTUAL GAMER"
+          echo "=============================="
+          echo ""
+          echo "Sistema:"
+          lsb_release -a || true
+          echo ""
+          echo "CPU:"
+          lscpu | grep -E "Model name|CPU\(s\)" || true
+          echo ""
+          echo "Memória:"
+          free -h
+          echo ""
+          echo "Armazenamento:"
+          df -h /
+          echo ""
+          echo "GPU:"
+          lspci | grep -Ei "vga|3d|display" || true
+          echo ""
+          echo "OpenGL:"
+          glxinfo -B || true
+          echo ""
+          echo "Vulkan:"
+          vulkaninfo --summary || true
+
+      - name: Criar configuração do ambiente gamer
+        run: |
+          mkdir -p "$HOME/PC-Virtual-Gamer"
+          
+          cat > "$HOME/PC-Virtual-Gamer/info.txt" <<EOF
+          PC Virtual Gamer
+          
+          Sistema: Ubuntu 22.04
+          Interface: XFCE
+          
+          Este ambiente é temporário.
+          O runner será destruído quando a execução terminar.
+          EOF
+
+      - name: Testar ambiente gráfico
+        run: |
+          export DISPLAY=:99
+
+          sudo apt-get install -y xvfb
+
+          Xvfb :99 -screen 0 1280x720x24 &
+          sleep 3
+
+          echo "Ambiente gráfico iniciado."
+          echo "Resolução: 1280x720"
+
+      - name: Teste final
+        run: |
+          echo ""
+          echo "================================"
+          echo "   PC VIRTUAL GAMER PRONTO"
+          echo "================================"
+          echo ""
+          echo "CPU:"
+          nproc
+          echo ""
+          echo "RAM:"
+          free -h
+          echo ""
+          echo "Disco:"
+          df -h /
+          echo ""
+          echo "Ambiente configurado com sucesso!"
